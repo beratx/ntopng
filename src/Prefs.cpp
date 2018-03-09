@@ -83,6 +83,7 @@ Prefs::Prefs(Ntop *_ntop) {
   dump_flows_on_es = dump_flows_on_mysql = dump_flows_on_ls = false;
   routing_mode_enabled = false;
   global_dns_forging_enabled = true;
+  use_influxdb = false;
 #if defined(NTOPNG_PRO) && defined(HAVE_NINDEX)
   dump_flows_on_nindex = false;
 #endif
@@ -630,6 +631,7 @@ static const struct option long_options[] = {
   { "packet-filter",                     required_argument, NULL, 'B' },
   { "dump-hosts",                        required_argument, NULL, 'D' },
   { "dump-flows",                        required_argument, NULL, 'F' },
+  { "influxdb",                          no_argument,       NULL, 'b' },
 #ifndef WIN32
   { "pid",                               required_argument, NULL, 'G' },
 #endif
@@ -778,6 +780,9 @@ int Prefs::setOption(int optkey, char *optarg) {
     free(local_networks);
     local_networks = strdup(optarg);
     local_networks_set = true;
+    break;
+  case 'b':
+    use_influxdb = true;
     break;
 
 #ifndef HAVE_NEDGE
@@ -1272,7 +1277,7 @@ int Prefs::loadFromCLI(int argc, char *argv[]) {
   u_char c;
 
   while((c = getopt_long(argc, argv,
-			 "k:eg:hi:w:r:sg:m:n:p:qd:t:x:1:2:3:4:l:uv:A:B:CD:E:F:N:G:I:O:Q:S:TU:X:W:VZ:",
+			 "k:eg:hi:w:r:sg:m:n:p:qd:t:x:1:2:3:4:l:uv:A:B:CD:E:F:N:G:I:O:Q:S:TU:X:W:VZ:b",
 			 long_options, NULL)) != '?') {
     if(c == 255) break;
     setOption(c, optarg);
@@ -1452,6 +1457,7 @@ void Prefs::lua(lua_State* vm) {
   lua_push_int_table_entry(vm, "max_num_flow_alerts", max_num_flow_alerts);
 
   lua_push_bool_table_entry(vm, "is_flow_device_port_rrd_creation_enabled", enable_flow_device_port_rrd_creation);
+  lua_push_bool_table_entry(vm, "is_using_influxdb", use_influxdb);
 
   lua_push_bool_table_entry(vm, "are_alerts_enabled", !disable_alerts);
   lua_push_bool_table_entry(vm, "slack_enabled", slack_notifications_enabled);

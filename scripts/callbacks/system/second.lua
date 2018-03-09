@@ -9,6 +9,7 @@ package.path = dirs.installdir .. "/scripts/lua/modules/?.lua;" .. package.path
 local rrd_utils = require "rrd_utils"
 local os_utils = require "os_utils"
 local callback_utils = require "callback_utils"
+local influxdb_utils = require "influxdb_utils"
 
 -- Toggle debug
 local enable_second_debug = false
@@ -20,16 +21,29 @@ callback_utils.foreachInterface(ifnames, interface_rrd_creation_enabled, functio
    if(enable_second_debug) then print("Processing "..ifname.."\n") end
    -- tprint(ifstats)
    basedir = os_utils.fixPath(dirs.workingdir .. "/" .. ifstats.id .. "/rrd")
+   influx_batch_dir = os_utils.fixPath(dirs.workingdir .. "/" .. ifstats.id .. "/influxdb")
    
    --io.write(basedir.."\n")
    if(not(ntop.exists(basedir))) then
       if(enable_second_debug) then io.write('Creating base directory ', basedir, '\n') end
       ntop.mkdir(basedir)
    end
-   
+
+   if(not(ntop.exists(influx_batch_dir))) then
+      if(enable_second_debug) then io.write('Creating base directory for influxdb', influx_batch_dir, '\n') end
+      ntop.mkdir(influx_batch_dir)
+   end
+  
    -- Traffic stats
    rrd_utils.makeRRD(basedir, when, ifstats.id, "iface", "bytes", 1, ifstats.stats.bytes)
    rrd_utils.makeRRD(basedir, when, ifstats.id, "iface", "packets", 1, ifstats.stats.packets)
+   
+   -- InfluxDB stats
+
+   if ntop.getPrefs().is_using_influxdb then
+     measurements = {["bytes"]=ifstats.stats.bytes, ["packets"]=ifstats.stats.packets}
+     influxdb_utils.makeInfluxDB(influx_batch_dir, ifstats.id, when, measurements)
+   end
    
    -- ZMQ stats
    if ifstats.zmqRecvStats ~= nil then

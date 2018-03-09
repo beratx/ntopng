@@ -164,6 +164,15 @@ int main(int argc, char *argv[])
   if(prefs->daemonize_ntopng())
     ntop->daemonize();
 
+  if(prefs->using_influxdb()){
+    bool serviceUp = Utils::checkInfluxDBServer();
+    if(!serviceUp){
+      ntop->getTrace()->traceEvent(TRACE_ERROR, "ntopng requires InfluxDB server to be up and running");
+      ntop->getTrace()->traceEvent(TRACE_ERROR, "Please start it and try again");
+      exit(0);
+    }
+    ntop->getTrace()->traceEvent(TRACE_NORMAL, "Using InfluxDB to save timeseries.");
+  }
 #ifdef linux
   /* Store number of CPUs before dropping privileges */
   ntop->setNumCPUs(sysconf(_SC_NPROCESSORS_ONLN));

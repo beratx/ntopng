@@ -43,6 +43,8 @@ struct keyval string_to_replace[MAX_NUM_HTTP_REPLACEMENTS] = { { NULL, NULL } };
 
 static Mutex rrd_lock;
 
+static int influx_counter  = 0;
+
 /* ******************************* */
 
 Lua::Lua() {
@@ -3603,6 +3605,32 @@ static int ntop_ts_flush(lua_State* vm) {
 }
 
 /* ****************************************** */
+static int ntop_get_influx_batch_counter(lua_State* vm){
+  ntop->getTrace()->traceEvent(TRACE_DEBUG, "%s() called", __FUNCTION__);
+
+  lua_pushinteger(vm, influx_counter);
+  return(CONST_LUA_OK);
+}
+
+/* ****************************************** */
+static int ntop_increment_influx_batch_counter(lua_State* vm){
+  ntop->getTrace()->traceEvent(TRACE_DEBUG, "%s() called", __FUNCTION__);
+
+  influx_counter++;
+  lua_pushnil(vm);
+  return(CONST_LUA_OK);
+}
+
+/* ****************************************** */
+
+static int ntop_reset_influx_batch_counter(lua_State* vm){
+  ntop->getTrace()->traceEvent(TRACE_DEBUG, "%s() called", __FUNCTION__);
+
+  influx_counter = 0;
+  lua_pushnil(vm);
+  return(CONST_LUA_OK);
+}
+/* ****************************************** */
 
 static int ntop_rrd_create(lua_State* vm) {
   const char *filename;
@@ -4247,8 +4275,54 @@ static int ntop_change_user_language(lua_State* vm) {
 
 /* ****************************************** */
 
+static int ntop_post_http(lua_State* vm) {
+  char *username, *password, *url;
+
+  if(ntop_lua_check(vm, __FUNCTION__, 1, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((username = (char*)lua_tostring(vm, 1)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(ntop_lua_check(vm, __FUNCTION__, 2, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((password = (char*)lua_tostring(vm, 2)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(ntop_lua_check(vm, __FUNCTION__, 3, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((url = (char*)lua_tostring(vm, 3)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(Utils::postHTTP(username, password, url)) {
+    lua_pushnil(vm);
+    return(CONST_LUA_OK);
+  } else
+    return(CONST_LUA_ERROR);
+}
+
+/* ****************************************** */
+
+static int ntop_post_http_binary_data(lua_State* vm) {
+  char *username, *password, *url, *batch_file;
+
+  if(ntop_lua_check(vm, __FUNCTION__, 1, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((username = (char*)lua_tostring(vm, 1)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(ntop_lua_check(vm, __FUNCTION__, 2, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((password = (char*)lua_tostring(vm, 2)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(ntop_lua_check(vm, __FUNCTION__, 3, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((url = (char*)lua_tostring(vm, 3)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(ntop_lua_check(vm, __FUNCTION__, 4, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
+  if((batch_file = (char*)lua_tostring(vm, 4)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(Utils::postHTTPBinaryData(username, password, url, batch_file)) {
+    lua_pushnil(vm);
+    return(CONST_LUA_OK);
+  } else
+    return(CONST_LUA_ERROR);
+}
+
+/* ****************************************** */
+
 static int ntop_post_http_json_data(lua_State* vm) {
   char *username, *password, *url, *json;
+  bool urlencode;
 
   if(ntop_lua_check(vm, __FUNCTION__, 1, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
   if((username = (char*)lua_tostring(vm, 1)) == NULL) return(CONST_LUA_PARAM_ERROR);
@@ -4261,6 +4335,9 @@ static int ntop_post_http_json_data(lua_State* vm) {
 
   if(ntop_lua_check(vm, __FUNCTION__, 4, LUA_TSTRING)) return(CONST_LUA_PARAM_ERROR);
   if((json = (char*)lua_tostring(vm, 4)) == NULL) return(CONST_LUA_PARAM_ERROR);
+
+  if(ntop_lua_check(vm, __FUNCTION__, 5, LUA_TBOOLEAN)) return(CONST_LUA_PARAM_ERROR);
+  urlencode = lua_toboolean(vm, 5);
 
   if(Utils::postHTTPJsonData(username, password, url, json)) {
     lua_pushnil(vm);
@@ -7012,6 +7089,11 @@ static const luaL_Reg ntop_reg[] = {
   { "rrd_fetch_columns",   ntop_rrd_fetch_columns },
   { "rrd_lastupdate",   ntop_rrd_lastupdate  },
 
+  /*InfluxDb */
+  {"incrementCounter", ntop_increment_influx_batch_counter},
+  {"resetCounter", ntop_reset_influx_batch_counter},
+  {"getCounter", ntop_get_influx_batch_counter},
+
   /* nSeries */
   { "tsSet",            ntop_ts_set   },
   { "tsFlush",          ntop_ts_flush },
@@ -7046,7 +7128,9 @@ static const luaL_Reg ntop_reg[] = {
   { "getRandomCSRFValue",       ntop_generate_csrf_value },
 
   /* HTTP */
-  { "postHTTPJsonData",         ntop_post_http_json_data },
+  { "postHTTP",             ntop_post_http },
+  { "postHTTPJsonData",     ntop_post_http_json_data },
+  { "postHTTPBinaryData",   ntop_post_http_binary_data },
 
   /* Address Resolution */
   { "resolveName",       ntop_resolve_address },       /* Note: you should use resolveAddress() to call from Lua */

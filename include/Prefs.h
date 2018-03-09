@@ -49,7 +49,8 @@ class Prefs {
     enable_users_login, disable_localhost_login, online_license_check,
     enable_access_log,
     flow_aggregation_enabled,
-    enable_mac_ndpi_stats;
+    enable_mac_ndpi_stats,
+    use_influxdb;
 
   u_int32_t non_local_host_max_idle, local_host_cache_duration,
 	  local_host_max_idle, flow_max_idle;
@@ -209,6 +210,7 @@ class Prefs {
   inline u_int32_t get_max_num_flows()                  { return(max_num_flows);          };
 
   inline bool daemonize_ntopng()                        { return(daemonize);              };
+  inline bool using_influxdb()                          { return(use_influxdb);           };
 
   inline u_int32_t get_attacker_max_num_flows_per_sec() { return(attacker_max_num_flows_per_sec); };
   inline u_int32_t get_victim_max_num_flows_per_sec()   { return(victim_max_num_flows_per_sec);   };

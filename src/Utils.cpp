@@ -963,6 +963,87 @@ static int curl_writefunc(void *ptr, size_t size, size_t nmemb, void *stream) {
   return(size*nmemb);
 }
 
+static int curl_readfunc(void *dest, size_t size, size_t nmemb, FILE *stream){
+  size_t retcode = fread(dest, size, nmemb, stream);
+  ntop->getTrace()->traceEvent(TRACE_INFO, "Read %d bytes from file", retcode);
+
+  return retcode;
+}
+
+/* **************************************** */
+bool Utils::postHTTPBinaryData(char *username, char *password, char *url, char *batch_file) {
+  CURL *curl;
+  CURLcode res;
+  bool ret = true;
+  FILE *fp;
+
+  if((fp = fopen(batch_file,"r")) == NULL){
+    ntop->getTrace()->traceEvent(TRACE_ERROR, "Can't open file: %s", batch_file);
+    ret = false;
+    return ret;
+  }
+
+  res = curl_global_init(CURL_GLOBAL_DEFAULT);
+
+  ntop->getTrace()->traceEvent(TRACE_DEBUG, "curl -XPOST: %s @%s",url,batch_file);
+
+  if(res != CURLE_OK){
+      ntop->getTrace()->traceEvent(TRACE_ERROR, "curl_global_init failed: %s",
+				                 curl_easy_strerror(res));
+      fclose(fp);
+      return ret;
+  }
+
+  curl = curl_easy_init();
+  if(curl) {
+    struct curl_slist* headers = NULL;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    if((username && (username[0] != '\0'))
+       || (password && (password[0] != '\0'))) {
+      char auth[64];
+
+      snprintf(auth, sizeof(auth), "%s:%s",
+	       username ? username : "",
+	       password ? password : "");
+      curl_easy_setopt(curl, CURLOPT_USERPWD, auth);
+      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
+    }
+
+    if(!strncmp(url, "https", 5)) {
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    }
+
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    headers =  curl_slist_append(headers, "Expect:");
+    headers =  curl_slist_append(headers, "Transfer-Encoding: chunked");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, curl_readfunc);
+    curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    res = curl_easy_perform(curl);
+
+    if(res != CURLE_OK) {
+      ntop->getTrace()->traceEvent(TRACE_WARNING,
+				   "Check if InfluxDB is up and running : %s",
+				    curl_easy_strerror(res));
+      ret = false;
+    } else
+      ntop->getTrace()->traceEvent(TRACE_INFO, "Updated InfluxDB database.");
+
+    /* always cleanup */
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+  }
+  fclose(fp);
+  curl_global_cleanup();
+
+  return(ret);
+}
+
 /* **************************************** */
 
 bool Utils::postHTTPJsonData(char *username, char *password, char *url, char *json) {
@@ -1019,6 +1100,58 @@ bool Utils::postHTTPJsonData(char *username, char *password, char *url, char *js
 
 /* **************************************** */
 
+bool Utils::postHTTP(char *username, char *password, char *url) {
+  CURL *curl;
+  bool ret = true;
+
+  curl = curl_easy_init();
+  if(curl) {
+    CURLcode res;
+    struct curl_slist* headers = NULL;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    if((username && (username[0] != '\0'))
+       || (password && (password[0] != '\0'))) {
+      char auth[64];
+
+      snprintf(auth, sizeof(auth), "%s:%s",
+	       username ? username : "",
+	       password ? password : "");
+      curl_easy_setopt(curl, CURLOPT_USERPWD, auth);
+      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
+    }
+
+    if(!strncmp(url, "https", 5)) {
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    }
+
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    headers =  curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
+
+    res = curl_easy_perform(curl);
+
+    if(res != CURLE_OK) {
+      ntop->getTrace()->traceEvent(TRACE_WARNING,
+				   "Unable to send post request to (%s): %s",
+				   url, curl_easy_strerror(res));
+      ret = false;
+    } else
+      ntop->getTrace()->traceEvent(TRACE_INFO, "Sent post request to %s", url);
+
+    /* always cleanup */
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+  }
+
+  return(ret);
+}
+
+/* **************************************** */
+
 /* curl calls this routine to get more data */
 static size_t curl_get_writefunc(char *buffer, size_t size,
 				 size_t nitems, void *userp) {
@@ -1039,6 +1172,36 @@ static size_t curl_get_writefunc(char *buffer, size_t size,
   return(len);
 }
 
+/* **************************************** */
+/* very simple HTTP GET --used to check if server is up */
+bool Utils::_httpGet(char *url){
+  CURL *curl;
+  CURLcode res;
+ 
+  curl = curl_easy_init();
+  if(curl) {
+    FILE *devnull = fopen("/dev/null","w+");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, devnull);
+ 
+    /* Perform the request, res will get the return code */ 
+    res = curl_easy_perform(curl);
+    /* Check for errors */ 
+    if(res != CURLE_OK)
+      return false;
+ 
+    /* always cleanup */ 
+    fclose(devnull);
+    curl_easy_cleanup(curl);
+  }
+  return true;
+}
+
+/* **************************************** */
+bool Utils::checkInfluxDBServer(){
+  return _httpGet("http://localhost:8086");
+}
 /* **************************************** */
 
 bool Utils::httpGet(lua_State* vm, char *url, char *username,
