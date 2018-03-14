@@ -466,7 +466,6 @@ function printTopRRDs(ifid, host, start_time, baseurl, zoomLevel, selectedEpoch)
 end
 
 -- ########################################################
-
 function drawRRD(ifid, host, rrdFile, zoomLevel, baseurl, show_timeseries,
 		 selectedEpoch, selected_epoch_sanitized)
    local debug_rrd = false
@@ -748,24 +747,38 @@ print[[
   </div> <!-- closes div class "tab-content" -->
 </div> <!-- closes div class "container-fluid" -->
 
+<script type="text/javascript" src="/js/plotly-latest.min.js"></script>
 <script>
 
-var palette = new Rickshaw.Color.Palette();
+]]
 
-var graph = new Rickshaw.Graph( {
-				   element: document.getElementById("chart"),
-				   width: 600,
-				   height: 300,
-				   renderer: 'area',
-				   series:
-				]]
+for elemIx=1,#rrd.traces do
+  print("var trace"..tostring(elemIx).." = "..rrd.traces[elemIx]..";\n\n")
+end
 
-print(rrd.json)
+print[[var data = []]
+for elemIx=1,#rrd.traces do
+  if(elemIx == #rrd.traces - 1) then
+    print("trace"..tostring(elemIx)..",")
+  else
+    print("trace"..tostring(elemIx).."];")
+  end
+end
 
 print [[
-				} );
 
-graph.render();
+var layout = {
+  xaxis: {
+    type : 'date',
+    showticklabels : false,
+    showgrid : false
+  },
+  yaxis: {
+    autorange : true
+  }
+};
+
+Plotly.newPlot("chart", data, layout);
 
 var chart_legend = document.querySelector('#chart_legend');
 
@@ -810,131 +823,6 @@ function capitaliseFirstLetter(string)
 	    return bytes + ' B';
 	 }
       }
-
-var Hover = Rickshaw.Class.create(Rickshaw.Graph.HoverDetail, {
-    graph: graph,
-    xFormatter: function(x) { return new Date( x * 1000 ); },
-    yFormatter: function(bits) { return(]] print(formatter_fctn) print [[(bits)); },
-    render: function(args) {
-		var graph = this.graph;
-		var points = args.points;
-		var point = points.filter( function(p) { return p.active } ).shift();
-
-		if(point.value.y === null) return;
-
-		var formattedXValue = fdate(point.value.x); // point.formattedXValue;
-		var formattedYValue = ]]
-	  print(formatter_fctn)
-	  print [[(point.value.y); // point.formattedYValue;
-		var infoHTML = "";
-]]
-
-print[[
-
-infoHTML += "<ul>";
-$.ajax({
-	  type: 'GET',
-	  url: ']]
-	  print(ntop.getHttpPrefix().."/lua/get_top_talkers.lua?epoch='+point.value.x+'&addvlan=true")
-	    print [[',
-		  data: { epoch: point.value.x },
-		  async: false,
-		  success: function(content) {
-		   var info = jQuery.parseJSON(content);
-		   $.each(info, function(i, n) {
-		     if (n.length > 0)
-		       infoHTML += "<li>"+capitaliseFirstLetter(i)+" [Avg Traffic/sec]<ol>";
-		     var items = 0;
-		     var other_traffic = 0;
-		     $.each(n, function(j, m) {
-		       if(items < 3) {
-			 infoHTML += "<li><a href='host_details.lua?host="+m.address+"'>"+abbreviateString(m.label ? m.label : m.address,24);
-		       infoHTML += "</a>";
-		       if (m.vlan != "0") infoHTML += " ("+m.vlanm+")";
-		       infoHTML += " ("+fbits((m.value*8)/60)+")</li>";
-			 items++;
-		       } else
-			 other_traffic += m.value;
-		     });
-		     if (other_traffic > 0)
-			 infoHTML += "<li>Other ("+fbits((other_traffic*8)/60)+")</li>";
-		     if (n.length > 0)
-		       infoHTML += "</ol></li>";
-		   });
-		   infoHTML += "</ul></li></li>";
-	   }
-   });
-infoHTML += "</ul>";]]
-
-print [[
-		this.element.innerHTML = '';
-		this.element.style.left = graph.x(point.value.x) + 'px';
-
-		/*var xLabel = document.createElement('div');
-		xLabel.setAttribute("style", "opacity: 0.5; background-color: #EEEEEE; filter: alpha(opacity=0.5)");
-		xLabel.className = 'x_label';
-		xLabel.innerHTML = formattedXValue + infoHTML;
-		this.element.appendChild(xLabel);
-		*/
-		$('#when').html(formattedXValue);
-		$('#talkers').html(infoHTML);
-
-
-		var item = document.createElement('div');
-
-		item.className = 'item';
-		item.innerHTML = this.formatter(point.series, point.value.x, point.value.y, formattedXValue, formattedYValue, point);
-		item.style.top = this.graph.y(point.value.y0 + point.value.y) + 'px';
-		this.element.appendChild(item);
-
-		var dot = document.createElement('div');
-		dot.className = 'dot';
-		dot.style.top = item.style.top;
-		dot.style.borderColor = point.series.color;
-		this.element.appendChild(dot);
-
-		if(point.active) {
-			item.className = 'item active';
-			dot.className = 'dot active';
-		}
-
-		this.show();
-
-		if(typeof this.onRender == 'function') {
-			this.onRender(args);
-		}
-
-		// Put the selected graph epoch into the legend
-		//chart_legend.innerHTML = point.value.x; // Epoch
-
-		this.selected_epoch = point.value.x;
-
-		//event
-	}
-} );
-
-var hover = new Hover( { graph: graph } );
-
-var legend = new Rickshaw.Graph.Legend( {
-					   graph: graph,
-					   element: document.getElementById('legend')
-					} );
-
-//var axes = new Rickshaw.Graph.Axis.Time( { graph: graph } ); axes.render();
-
-var yAxis = new Rickshaw.Graph.Axis.Y({
-    graph: graph,
-    tickFormat: ]] print(formatter_fctn) print [[
-});
-
-yAxis.render();
-
-$("#chart").click(function() {
-  if(hover.selected_epoch)
-    window.location.href = ']]
-print(baseurl .. '&rrd_file=' .. rrdFile .. '&zoom=' .. nextZoomLevel .. '&epoch=')
-print[['+hover.selected_epoch;
-});
 
 </script>
 
@@ -1058,10 +946,31 @@ local function ninetififthPercentile(N)
 end
 
 -- ########################################################
+local function formatBits(bits)
+  local kilobyte = 1024;
+  local megabyte = kilobyte * 1024;
+  local gigabyte = megabyte * 1024;
+  local terabyte = gigabyte * 1024;
+
+  if((bits >= 0) and (bits < kilobyte)) then
+     return math.floor(bits)..' bps'
+  elseif((bits >= kilobyte) and (bits < megabyte)) then
+     return math.floor(bits / kilobyte)..' kbit/s'
+  elseif((bits >= megabyte) and (bits < gigabyte)) then
+     return math.floor(bits / megabyte)..' Mbit/s'
+  elseif((bits >= gigabyte) and (bits < terabyte)) then
+     return math.floor(bits / gigabyte)..' Gbit/s'
+  elseif(bits >= terabyte) then
+     return math.floor(bits / terabyte)..' Tbit/s'
+  else
+     return math.floor(bits)..' bps'
+   end
+end
+-- ########################################################
 
 -- reads one or more RRDs and returns a json suitable to feed rickshaw
 
-function singlerrd2json(ifid, host, rrdFile, start_time, end_time, rickshaw_json, append_ifname_to_labels, transform_columns_function)
+function singlerrd2json(ifid, host, rrdFile, start_time, end_time, plotly_json, append_ifname_to_labels, transform_columns_function)
    local rrdname = getRRDName(ifid, host, rrdFile)
    local names =  {}
    local names_cache = {}
@@ -1293,26 +1202,41 @@ function singlerrd2json(ifid, host, rrdFile, start_time, end_time, rickshaw_json
 
    if(names ~= nil) then
       json_ret = ''
+      traces = {}
 
-      if(rickshaw_json) then
+      if(plotly_json) then
 	 for elemId=1,#names do
-	    if(elemId > 1) then
-	       json_ret = json_ret.."\n,\n"
-	    end
+            trace = ''
 	    local name = names[elemId]
-	    json_ret = json_ret..'{"name": "'.. name .. '",\n'
-	    json_ret = json_ret..'color: \''.. colors[elemId] ..'\',\n'
-	    json_ret = json_ret..'"data": [\n'
+	    trace = trace..'{\n name : \''.. name .. '\',\n'
+	    trace = trace..' type : \'area\',\n'
+	    trace = trace..' mode : \'none\',\n'
+	    trace = trace..' fill : \'tonexty\',\n'
+	    trace = trace..' hoverinfo : \"text\",\n'
+            hover_labels = ' text : ['
+            x_values = ' x : ['
+            y_values = ' y : ['
+
 	    n = 0
 	    for key, value in pairs(series) do
 	       if(n > 0) then
-		  json_ret = json_ret..',\n'
+                 x_values = x_values..',' 
+                 y_values = y_values..',' 
+                 hover_labels = hover_labels..','
 	       end
-	       json_ret = json_ret..'\t{ "x": '..  value[0] .. ', "y": '.. value[elemId] .. '}'
+               x_values = x_values..' '..value[0]
+               y_values = y_values..' '..value[elemId]
+               hover_labels = hover_labels..'\"'..formatBits(value[elemId])..'\"'
 	       n = n + 1
 	    end
 
-	    json_ret = json_ret.."\n]}\n"
+            x_values = x_values..'],\n'
+            y_values = y_values..']\n}'
+            hover_labels = hover_labels..'],\n'
+
+	    trace = trace..hover_labels..x_values..y_values
+
+            traces[elemId] = trace
 	 end
       else
 	 -- NV3
@@ -1397,6 +1321,7 @@ function singlerrd2json(ifid, host, rrdFile, start_time, end_time, rickshaw_json
    ret.totalval = round(totalval, 0)
    ret.percentile = round(percentile, 0)
    ret.average = round(average, 0)
+   ret.traces = traces
    ret.json = json_ret
 
    if(last_time ~= nil) then
@@ -1459,7 +1384,7 @@ function rrd2json_merge(ret, num)
    return(ret[1])
 end
 
-function rrd2json(ifid, host, rrdFile, start_time, end_time, rickshaw_json, expand_interface_views)
+function rrd2json(ifid, host, rrdFile, start_time, end_time, plotly_json, expand_interface_views)
    local ret = {}
    local num = 0
    local debug_metric = false
@@ -1496,7 +1421,7 @@ function rrd2json(ifid, host, rrdFile, start_time, end_time, rickshaw_json, expa
        local traffic_array = {}
 
        for key, value in pairs(rrds) do
-	  local rsp = singlerrd2json(ifid, host, value, start_time, end_time, rickshaw_json, expand_interface_views)
+	  local rsp = singlerrd2json(ifid, host, value, start_time, end_time, plotly_json, expand_interface_views)
 	  if(rsp.totalval ~= nil) then total = rsp.totalval else total = 0 end
 
 	  if(total > 0) then
@@ -1521,7 +1446,7 @@ function rrd2json(ifid, host, rrdFile, start_time, end_time, rickshaw_json, expa
 	   if(debug_metric) then io.write('iface: '..iface..'\n') end
 	    for i,rrd in pairs(split(rrdFile, ",")) do
 		if(debug_metric) then io.write("["..i.."] "..rrd..' iface: '..iface.."\n") end
-		ret[#ret + 1] = singlerrd2json(iface, host, rrd, start_time, end_time, rickshaw_json, expand_interface_views)
+		ret[#ret + 1] = singlerrd2json(iface, host, rrd, start_time, end_time, plotly_json, expand_interface_views)
 		if(ret[#ret].json ~= nil) then num = num + 1 end
 	    end
        end
