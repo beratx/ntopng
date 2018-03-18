@@ -946,6 +946,14 @@ local function ninetififthPercentile(N)
 end
 
 -- ########################################################
+local function toPrecision(n,p)
+  local _,i = string.find(n,'%.')
+  if (i ~= nil) then
+    return string.sub(n,1,i+p)
+  end
+  return n
+end
+-- ########################################################
 local function formatBits(bits)
   local kilobyte = 1024;
   local megabyte = kilobyte * 1024;
@@ -953,17 +961,17 @@ local function formatBits(bits)
   local terabyte = gigabyte * 1024;
 
   if((bits >= 0) and (bits < kilobyte)) then
-     return math.floor(bits)..' bps'
+     return toPrecision(bits,2)..' bps'
   elseif((bits >= kilobyte) and (bits < megabyte)) then
-     return math.floor(bits / kilobyte)..' kbit/s'
+     return toPrecision((bits / kilobyte),2)..' kbit/s'
   elseif((bits >= megabyte) and (bits < gigabyte)) then
-     return math.floor(bits / megabyte)..' Mbit/s'
+     return toPrecision((bits / megabyte),2)..' Mbit/s'
   elseif((bits >= gigabyte) and (bits < terabyte)) then
-     return math.floor(bits / gigabyte)..' Gbit/s'
+     return toPrecision((bits / gigabyte),2)..' Gbit/s'
   elseif(bits >= terabyte) then
-     return math.floor(bits / terabyte)..' Tbit/s'
+     return toPrecision((bits / terabyte),2)..' Tbit/s'
   else
-     return math.floor(bits)..' bps'
+     return toPrecision((bits),2)..' bps'
    end
 end
 -- ########################################################

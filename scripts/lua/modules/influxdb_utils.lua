@@ -106,8 +106,7 @@ function influxdb_utils.makeInfluxDB(basedir, ifid, measurements,when)
   local batch_path = os_utils.fixPath(basedir .. "/batch")
   local counter = ntop.getCounter()
   batch_file = io.open(batch_path,"a")
-  --if(counter == 0) then 
-  if(not(exist_db("ntopng"))) then 
+  if((counter == 0) and not(exist_db("ntopng"))) then 
     create_db()
   elseif(counter == size) then
     if(enable_second_debug == 1) then io.write('Updating database...\n') end
@@ -125,9 +124,9 @@ function influxdb_utils.makeInfluxDB(basedir, ifid, measurements,when)
 end
 
 -- ########################################################
-function influxdb_utils.queryDB(fields,measurement,start_time,end_time)
+function influxdb_utils.queryDB(ifid,fields,measurement,start_time,end_time)
   local url ="http://localhost:8086/query?db=ntopng&epoch=s&q=SELECT+"..fields.."+FROM+"..measurement.."+"
-  local condition = "WHERE time >= "..start_time.." and time <= "..end_time
+  local condition = "WHERE ifid = \'"..ifid.."\' and time >= "..start_time.." and time <= "..end_time
   local response = ntop.httpGet(url..url_encode(condition))
   return response["CONTENT"]
 end
