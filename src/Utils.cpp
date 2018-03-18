@@ -1200,7 +1200,7 @@ bool Utils::_httpGet(char *url){
 
 /* **************************************** */
 bool Utils::checkInfluxDBServer(){
-  return _httpGet("http://localhost:8086");
+  return _httpGet("http://localhost:8086/ping");
 }
 /* **************************************** */
 

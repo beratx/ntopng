@@ -42,7 +42,7 @@ callback_utils.foreachInterface(ifnames, interface_rrd_creation_enabled, functio
 
    if ntop.getPrefs().is_using_influxdb then
      measurements = {["bytes"]=ifstats.stats.bytes, ["packets"]=ifstats.stats.packets}
-     influxdb_utils.makeInfluxDB(influx_batch_dir, ifstats.id, measurements)
+     influxdb_utils.makeInfluxDB(influx_batch_dir, ifstats.id, measurements, when)
    end
    
    -- ZMQ stats
